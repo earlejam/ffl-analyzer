@@ -37,33 +37,41 @@ else:
 
 # gather existing files for each league; a dictionary of lists, most recent file first
 leagues = {}
-for league_name in os.listdir('leagues'):
-    league_files = os.listdir(os.path.join('leagues', league_name))  # todo error here
+league_dirs = os.listdir('leagues')
+
+for league_name in league_dirs:
+    league_files = os.listdir(os.path.join('leagues', league_name))
     league_files.sort(reverse=True)
     leagues[league_name] = league_files
 
 
-# display existing leagues
-print('Detected leagues: ')
-for league in leagues.keys():
-    print(league)
+# if only one league found, select it automatically
+if len(leagues) == 1:
+    latest_rankings = leagues[league_name][0]
+    print('Selected {}'.format(league_name))
 
+else:
 
-# user must select a league on which to operate
-while True:
-    league_name = input('Please select a league: ').strip()
+    # display existing leagues
+    print('Detected leagues: ')
+    for league in leagues.keys():
+        print(league)
 
-    # determine which number to assign the new file
-    if leagues.get(league_name, None) is not None:
+    # user must select a league on which to operate
+    while True:
+        league_name = input('Please select a league: ').strip()
 
-        # use the most recent file from which to pull values
-        latest_rankings = leagues[league_name][0]
+        # determine which number to assign the new file
+        if leagues.get(league_name, None) is not None:
 
-        print('Selected {}'.format(league_name))
-        break
+            # use the most recent file from which to pull values
+            latest_rankings = leagues[league_name][0]
 
-    else:
-        print('That league could not be found.')
+            print('Selected {}'.format(league_name))
+            break
+
+        else:
+            print('That league could not be found.')
 
 
 # no need to read from file if first run through the program (data already loaded)
@@ -123,7 +131,7 @@ else:
 # save weekly files to corresponding league folder
 new_filepath = os.path.join('leagues', league_name, new_file)
 
-# write owner,value to this first file
+# write owner,value to new file
 with open(new_filepath, 'w') as file:
     w = csv.writer(file)
     w.writerows(expected_wins.items())
