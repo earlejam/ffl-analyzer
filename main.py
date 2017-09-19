@@ -1,14 +1,15 @@
 import os
+import glob
 import csv
 
 
-print('Welcome to the FFL Power Rankings (Expected Wins) Calculator!')
+def create_league(message):
+    """Get input from user to fill out the name and members of a new league
+    :param message: string, to prompt the user to create the new league
+    :return: dict, expected wins (set to 0.0) for each team in the league
+    """
 
-league_names = os.listdir('leagues')
-
-# first time through the program, need a league on which to operate
-if len(league_names) == 0:
-    league_name = input('No previously-created leagues found. Please enter a name for a new league: ').strip()
+    league_name = input(message).strip()
 
     # create a directory to contain power rankings files for this league
     path_to_league = os.path.join('leagues', league_name)
@@ -30,6 +31,18 @@ if len(league_names) == 0:
         w = csv.writer(file)
         w.writerows(expected_wins.items())
 
+    return expected_wins
+
+
+print('Welcome to the FFL Power Rankings (Expected Wins) Calculator!')
+
+league_names = os.listdir('leagues')
+
+# first time through the program, need a league on which to operate
+if len(league_names) == 0:
+
+    expected_wins = create_league('No previously-created leagues found. Please enter a name for a new league: ')
+
 # indicates that reading from file is required later
 else:
     expected_wins = None
@@ -40,47 +53,44 @@ leagues = {}
 league_dirs = os.listdir('leagues')
 
 for league_name in league_dirs:
-    league_files = os.listdir(os.path.join('leagues', league_name))
+    league_files = glob.glob(os.path.join('leagues', league_name, '*'))
     league_files.sort(reverse=True)
     leagues[league_name] = league_files
 
 
-# if only one league found, select it automatically
-if len(leagues) == 1:
-    latest_rankings = leagues[league_name][0]
-    print('Selected {}'.format(league_name))
+# display existing leagues
+print('Detected leagues: ')
+for league in leagues.keys():
+    print(league)
 
-else:
+# user must select a league on which to operate, or create new
+while True:
+    league_name = input('Please select a league, or enter "create" to make a new one: ').strip()
 
-    # display existing leagues
-    print('Detected leagues: ')
-    for league in leagues.keys():
-        print(league)
+    if league_name.lower() == 'create':
+        expected_wins = create_league('Please enter the name for the new league: ')
+        break
 
-    # user must select a league on which to operate
-    while True:
-        league_name = input('Please select a league: ').strip()
+    # determine which number to assign the new file
+    elif leagues.get(league_name, None) is not None:
 
-        # determine which number to assign the new file
-        if leagues.get(league_name, None) is not None:
+        # use the most recent file from which to pull values
+        latest_rankings = leagues[league_name][0]
 
-            # use the most recent file from which to pull values
-            latest_rankings = leagues[league_name][0]
+        print('Selected {}'.format(league_name))
+        break
 
-            print('Selected {}'.format(league_name))
-            break
-
-        else:
-            print('That league could not be found.')
+    else:
+        print('That league could not be found.')
 
 
-# no need to read from file if first run through the program (data already loaded)
+# no need to read from file if first run with a league (data already loaded)
 if expected_wins is None:
 
     # read in the most recent (cumulative) expected win values
     with open(latest_rankings, 'r') as infile:
         r = csv.reader(infile)
-        expected_wins = {rows[0]: float(rows[1]) for rows in r}
+        expected_wins = {row[0]: float(row[1]) for row in r if row}
 
 
 # get each team's score for the current week
@@ -129,7 +139,7 @@ else:
     new_file = latest_rankings[0:-6] + str(new_wk_num) + '.csv'
 
 # save weekly files to corresponding league folder
-new_filepath = os.path.join('leagues', league_name, new_file)
+new_filepath = os.path.join(new_file)
 
 # write owner,value to new file
 with open(new_filepath, 'w') as file:
