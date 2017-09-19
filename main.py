@@ -31,7 +31,7 @@ def create_league(message):
         w = csv.writer(file)
         w.writerows(expected_wins.items())
 
-    return expected_wins
+    return league_name, expected_wins
 
 
 print('Welcome to the FFL Power Rankings (Expected Wins) Calculator!')
@@ -41,7 +41,7 @@ league_names = os.listdir('leagues')
 # first time through the program, need a league on which to operate
 if len(league_names) == 0:
 
-    expected_wins = create_league('No previously-created leagues found. Please enter a name for a new league: ')
+    league_name, expected_wins = create_league('No previously-created leagues found. Please enter a name for a new league: ')
 
 # indicates that reading from file is required later
 else:
@@ -68,14 +68,11 @@ while True:
     league_name = input('Please select a league, or enter "create" to make a new one: ').strip()
 
     if league_name.lower() == 'create':
-        expected_wins = create_league('Please enter the name for the new league: ')
+        league_name, expected_wins = create_league('Please enter the name for the new league: ')
         break
 
     # determine which number to assign the new file
     elif leagues.get(league_name, None) is not None:
-
-        # use the most recent file from which to pull values
-        latest_rankings = leagues[league_name][0]
 
         print('Selected {}'.format(league_name))
         break
@@ -83,6 +80,8 @@ while True:
     else:
         print('That league could not be found.')
 
+# use the most recent file from which to pull values
+latest_rankings = leagues[league_name][0]
 
 # no need to read from file if first run with a league (data already loaded)
 if expected_wins is None:
