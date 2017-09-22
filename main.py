@@ -121,13 +121,26 @@ new_wk_num = int(latest_rankings[-6:-4]) + 1
 
 print('Power Rankings / Expected Wins: Week {}'.format(new_wk_num))
 print('{0: >4} | {1: >10} | {2: >13}'.format('Rank', 'Owner', 'Expected Wins'))
+
+# keep tabs on (ranking, previous ew_total) to support ties in the rankings
+prev_ew = (0, -1)
+
 for idx, pair in enumerate(sorted_exp_wins):
-    print('{0: >4} | {1: >10} | {2: >13.3f}'.format(idx + 1, pair[0], pair[1]))
+
+    # edge case for ties; check that current expected wins not same (when rounded) as previous
+    curr_ew = (idx + 1, pair[1])
+
+    if round(curr_ew[1], 4) == round(prev_ew[1], 4):
+        print('{0: >4} | {1: >10} | {2: >13.3f}'.format(prev_ew[0], pair[0], prev_ew[1]))
+
+    else:
+        print('{0: >4} | {1: >10} | {2: >13.3f}'.format(idx + 1, pair[0], pair[1]))
+        prev_ew = curr_ew
 
 
 # update expected wins dictionary
 for pair in sorted_scores:
-    expected_wins[pair[0]] = '{0:.3f}'.format(pair[1])  # round to 3 decimal places
+    expected_wins[pair[0]] = '{0:.6f}'.format(pair[1])  # round to 6 decimal places
 
 # values are now updated, need to save to a new file for this week
 
