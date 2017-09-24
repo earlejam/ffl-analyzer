@@ -1,6 +1,7 @@
 import os
 import glob
 import csv
+from espnff import League
 
 
 def create_league(message):
@@ -9,29 +10,45 @@ def create_league(message):
     :return: dict, expected wins (set to 0.0) for each team in the league
     """
 
-    league_name = input(message).strip()
+    lg_name = input(message).strip()
 
     # create a directory to contain power rankings files for this league
-    path_to_league = os.path.join('leagues', league_name)
+    path_to_league = os.path.join('leagues', lg_name)
     os.mkdir(path_to_league)
 
-    owners_string = input('Please enter all owners (members) of this league, separated by spaces: \n').strip()
+    league_id = int(input('Please enter the league id (see the url in any league page): ').strip())
 
-    owners = tuple(owners_string.split(' '))
+    espn_league = League(league_id, 2017)
+
+    # list of owner names as given by their espn accounts
+    owners = [tm.owner for tm in espn_league.teams]
 
     # key value pairs of an owner and his cumulative expected wins for the season; start with zero
-    expected_wins = dict([(owner, 0.0) for owner in owners])
+    expected_wins_dict = dict([(owner, 0.0) for owner in owners])
 
     # avoid creating file with one or more spaces, so silently replace with hyphen
-    league_name = league_name.replace(' ', '-')
-    rankings_filepath = os.path.join(path_to_league, '{}-00.csv'.format(league_name))
+    lg_name = lg_name.replace(' ', '-')
+    rankings_filepath = os.path.join(path_to_league, '{}-00.csv'.format(lg_name))
 
     # write owner, value to this first file
-    with open(rankings_filepath, 'w') as file:
-        w = csv.writer(file)
-        w.writerows(expected_wins.items())
+    with open(rankings_filepath, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerows(expected_wins_dict.items())
 
-    return league_name, expected_wins
+    return lg_name, expected_wins_dict
+
+
+def get_league_files(lg_name):
+    """Return all of the files associated with this league.
+    :param lg_name: string
+    :return: list of filepaths to all league files; meant to be assigned to a dictonary key
+    matching the name of the league.
+    """
+
+    league_files = glob.glob(os.path.join('leagues', lg_name, '*'))
+    league_files.sort(reverse=True)
+
+    return league_files
 
 
 print('Welcome to the FFL Power Rankings (Expected Wins) Calculator!')
@@ -41,7 +58,8 @@ league_names = os.listdir('leagues')
 # first time through the program, need a league on which to operate
 if len(league_names) == 0:
 
-    league_name, expected_wins = create_league('No previously-created leagues found. Please enter a name for a new league: ')
+    league_name, expected_wins = create_league('No previously-created leagues found. Please enter a name '
+                                               'for a new league: ')
 
 # indicates that reading from file is required later
 else:
@@ -52,10 +70,10 @@ else:
 leagues = {}
 league_dirs = os.listdir('leagues')
 
+
+# compile and sort all files for the league
 for league_name in league_dirs:
-    league_files = glob.glob(os.path.join('leagues', league_name, '*'))
-    league_files.sort(reverse=True)
-    leagues[league_name] = league_files
+    leagues[league_name] = get_league_files(league_name)
 
 
 # display existing leagues
@@ -69,6 +87,7 @@ while True:
 
     if league_name.lower() == 'create':
         league_name, expected_wins = create_league('Please enter the name for the new league: ')
+        leagues[league_name] = get_league_files(league_name)
         break
 
     # determine which number to assign the new file
@@ -81,6 +100,7 @@ while True:
         print('That league could not be found.')
 
 # use the most recent file from which to pull values
+print(leagues)
 latest_rankings = leagues[league_name][0]
 
 # no need to read from file if first run with a league (data already loaded)
@@ -120,7 +140,7 @@ sorted_exp_wins = sorted(sorted_scores, key=lambda x: x[1], reverse=True)
 new_wk_num = int(latest_rankings[-6:-4]) + 1
 
 print('Power Rankings / Expected Wins: Week {}'.format(new_wk_num))
-print('{0: >4} | {1: >10} | {2: >13}'.format('Rank', 'Owner', 'Expected Wins'))
+print('{0: >4} | {1: >19} | {2: >13}'.format('Rank', 'Owner', 'Expected Wins'))
 
 # keep tabs on (ranking, previous ew_total) to support ties in the rankings
 prev_ew = (0, -1)
@@ -131,10 +151,10 @@ for idx, pair in enumerate(sorted_exp_wins):
     curr_ew = (idx + 1, pair[1])
 
     if round(curr_ew[1], 4) == round(prev_ew[1], 4):
-        print('{0: >4} | {1: >10} | {2: >13.3f}'.format(prev_ew[0], pair[0], prev_ew[1]))
+        print('{0: >4} | {1: >19} | {2: >13.3f}'.format(prev_ew[0], pair[0], prev_ew[1]))
 
     else:
-        print('{0: >4} | {1: >10} | {2: >13.3f}'.format(idx + 1, pair[0], pair[1]))
+        print('{0: >4} | {1: >19} | {2: >13.3f}'.format(idx + 1, pair[0], pair[1]))
         prev_ew = curr_ew
 
 
