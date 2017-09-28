@@ -167,8 +167,13 @@ sorted_exp_wins = sorted(sorted_scores, key=lambda x: x[1], reverse=True)
 
 new_wk_num = int(latest_rankings[-6:-4]) + 1
 
+
+owners_wins = {team.owner: team.wins for team in league_obj.teams}
+print(owners_wins)
+
 print('Power Rankings / Expected Wins: Week {}'.format(new_wk_num))
-print('{0: >4} | {1: >19} | {2: >13}'.format('Rank', 'Owner', 'Expected Wins'))
+print('{0: >4} | {1: >19} | {2: >13} | {3: >11} | {4: >6}'.format('Rank', 'Owner', 'Expected Wins',
+                                                                  'Actual Wins', '+/-'))
 
 # keep tabs on (ranking, previous ew_total) to support ties in the rankings
 prev_ew = (0, -1)
@@ -177,12 +182,13 @@ for idx, pair in enumerate(sorted_exp_wins):
 
     # edge case for ties; check that current expected wins not same (when rounded) as previous
     curr_ew = (idx + 1, pair[1])
+    curr_aw = owners_wins[pair[0]]
 
     if round(curr_ew[1], 4) == round(prev_ew[1], 4):
-        print('{0: >4} | {1: >19} | {2: >13.3f}'.format(prev_ew[0], pair[0], prev_ew[1]))
+        print('{0: >4} | {1: >19} | {2: >13.3f} | {3: >11} | {4: >+6.3f}'.format(prev_ew[0], pair[0], prev_ew[1], curr_aw, curr_aw - prev_ew[1]))
 
     else:
-        print('{0: >4} | {1: >19} | {2: >13.3f}'.format(idx + 1, pair[0], pair[1]))
+        print('{0: >4} | {1: >19} | {2: >13.3f} | {3: >11} | {4: >+6.3f}'.format(idx + 1, pair[0], pair[1], curr_aw, curr_aw - pair[1]))
         prev_ew = curr_ew
 
 
