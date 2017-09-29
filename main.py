@@ -191,6 +191,10 @@ for idx, pair in enumerate(sorted_exp_wins):
         print('{0: >4} | {1: >19} | {2: >13.3f} | {3: >11} | {4: >+6.3f}'.format(idx + 1, pair[0], pair[1], curr_aw, curr_aw - pair[1]))
         prev_ew = curr_ew
 
+print('\nESPN Power Rankings:')
+for row in league_obj.power_rankings(week_num):
+    print('{0: >19} | {1: >5}'.format(row[1].owner, row[0]))
+
 
 # update expected wins dictionary
 for pair in sorted_scores:
