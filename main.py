@@ -4,8 +4,6 @@ import csv
 from espnff import League
 
 
-
-
 def create_league(message):
     """Get input from user to fill out the name and members of a new league
     :param message: string, to prompt the user to create the new league
@@ -158,7 +156,11 @@ for idx, pair in enumerate(sorted_scores):
 
     # e.g., 12-team league, 2nd highest scorer would lose one matchup --> 1 - (1 * 1/11) = .909 expected wins
     ew_this_week = 1 - (idx * (1/(num_teams - 1)))
-    sorted_scores[idx][1] = expected_wins[pair[0]] + ew_this_week
+
+    if pair[0] == 'ty boy':
+        sorted_scores[idx][1] = expected_wins['Tyler Brown'] + ew_this_week
+    else:
+        sorted_scores[idx][1] = expected_wins[pair[0]] + ew_this_week
 
 
 # display the new rankings
@@ -167,9 +169,7 @@ sorted_exp_wins = sorted(sorted_scores, key=lambda x: x[1], reverse=True)
 
 new_wk_num = int(latest_rankings[-6:-4]) + 1
 
-
 owners_wins = {team.owner: team.wins for team in league_obj.teams}
-print(owners_wins)
 
 print('Power Rankings / Expected Wins: Week {}'.format(new_wk_num))
 print('{0: >4} | {1: >19} | {2: >13} | {3: >11} | {4: >6}'.format('Rank', 'Owner', 'Expected Wins',
