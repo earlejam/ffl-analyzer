@@ -157,10 +157,7 @@ for idx, pair in enumerate(sorted_scores):
     # e.g., 12-team league, 2nd highest scorer would lose one matchup --> 1 - (1 * 1/11) = .909 expected wins
     ew_this_week = 1 - (idx * (1/(num_teams - 1)))
 
-    if pair[0] == 'ty boy':
-        sorted_scores[idx][1] = expected_wins['Tyler Brown'] + ew_this_week
-    else:
-        sorted_scores[idx][1] = expected_wins[pair[0]] + ew_this_week
+    sorted_scores[idx][1] = expected_wins[pair[0]] + ew_this_week
 
 
 # display the new rankings
