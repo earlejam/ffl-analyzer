@@ -1,2 +1,2 @@
 # ffl-analyzer
-In-Progress. A Python program for creating weekly power rankings for fantasy football leagues.
+A Python program built for league managers, for creating and saving weekly power rankings for ESPN Fantasy Football leagues.
