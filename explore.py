@@ -56,9 +56,8 @@ owner_to_idx = {tm_obj.owner: index for index, tm_obj in enumerate(team_objs)}
 team1_dd = Dropdown(label='Team 1 - Select', menu=owners_list)
 team2_dd = Dropdown(label='Team 2 - Select', menu=owners_list)
 comp_button = Button(label='Compare', button_type='danger')
-clear_button = Button(label='Clear', button_type='warning')
 
-compare_widgets = column(team1_dd, team2_dd, comp_button, clear_button)
+compare_widgets = column(team1_dd, team2_dd, comp_button)
 
 week_slider = RangeSlider(title='Weeks', start=1, end=week_num, value=(1, week_num), step=1)
 
@@ -116,54 +115,66 @@ sc_sources = [ColumnDataSource(dict(
     owner=[owners[i]] * len(weeks)
 )) for i in range(num_teams)]
 
-sc_rend_list = []
-sc_legend_items = []
-
 # will use to avoid re-computation of data after comparisons
-backup_sc_data = [ [[], []] for i in range(num_teams) ]
-backup_ew_data = [ [[], []] for i in range(num_teams) ]
+backup_sc_data = [[[], []] for i in range(num_teams)]
+backup_ew_data = [[[], []] for i in range(num_teams)]
 legend_labels = ['' for i in range(num_teams)]
 
-for idx, tm_obj in enumerate(team_objs):
-    first_name = tm_obj.owner.split(' ')[0]
 
-    r = plot1.rect('x', 'y', source=sc_sources[idx], width=.5, height=1.2, fill_color=line_colors[idx], fill_alpha=0.95,
-                   line_color=line_colors[idx], muted_color=line_colors[idx], muted_alpha=0.05)
+def plot_sc_data():
+    # todo docstring
 
-    l = plot1.line('x', 'y', source=sc_sources[idx], line_color=line_colors[idx], line_alpha=0.35, line_dash='dashed',
-                   muted_color=line_colors[idx], muted_alpha=0.05)
+    sc_rend_list = []
+    sc_legend_items = []
 
-    sc_rend_list.append((r, l))
-    sc_legend_items.append(('{}  '.format(first_name), [r, l]))
+    for idx, tm_obj in enumerate(team_objs):
+        first_name = tm_obj.owner.split(' ')[0]
+
+        r = plot1.rect('x', 'y', source=sc_sources[idx], width=.5, height=1.2, fill_color=line_colors[idx], fill_alpha=0.95,
+                       line_color=line_colors[idx], muted_color=line_colors[idx], muted_alpha=0.05)
+
+        l = plot1.line('x', 'y', source=sc_sources[idx], line_color=line_colors[idx], line_alpha=0.35, line_dash='dashed',
+                       muted_color=line_colors[idx], muted_alpha=0.05)
+
+        sc_rend_list.append((r, l))
+        sc_legend_items.append(('{}  '.format(first_name), [r, l]))
+
+    plot1.legend.location = 'top_center'
+    plot1.legend.orientation = 'horizontal'
+
+    sc_legend = Legend(items=sc_legend_items, location=(0, 13), orientation='horizontal')
+
+    plot1.add_layout(sc_legend, 'above')
+    plot1.legend.click_policy = 'mute'
+
+    return sc_rend_list
 
 
-plot1.legend.location = 'top_center'
-plot1.legend.orientation = 'horizontal'
+sc_renderers = plot_sc_data()
 
-sc_legend = Legend(items=sc_legend_items, location=(0, 13), orientation='horizontal')
 
-plot1.add_layout(sc_legend, 'above')
+def compile_expected_wins(league, team_objects, all_weeks, ownr_to_idx, number_teams):
+    # todo docstring
 
-plot1.legend.click_policy = 'mute'
+    # compile expected wins
+    for week in all_weeks:
 
-# compile expected wins
+        all_scores = get_scores(league, week)
 
-for week in weeks:
+        for i, (owner, score) in enumerate(all_scores):
 
-    all_scores = get_scores(league_obj, week)
+            tgt_team = team_objects[ownr_to_idx[owner]]
 
-    for idx, (owner, score) in enumerate(all_scores):
+            # e.g., 12-team league, 2nd highest scorer would lose one matchup --> 1 - (1 * 1/11) = .909 expected wins
+            ew_this_week = 1 - (i * (1/(number_teams - 1)))
 
-        tgt_team = team_objs[owner_to_idx[owner]]
+            # determine new expected wins total and store
+            cumul_ew = tgt_team.exp_wins[week - 1]
+            new_cumul_ew = cumul_ew + ew_this_week
+            tgt_team.exp_wins.append(new_cumul_ew)
 
-        # e.g., 12-team league, 2nd highest scorer would lose one matchup --> 1 - (1 * 1/11) = .909 expected wins
-        ew_this_week = 1 - (idx * (1/(num_teams - 1)))
 
-        # determine new expected wins total and store
-        cumul_ew = tgt_team.exp_wins[week - 1]
-        new_cumul_ew = cumul_ew + ew_this_week
-        tgt_team.exp_wins.append(new_cumul_ew)
-
+compile_expected_wins(league_obj, team_objs, weeks, owner_to_idx, num_teams)
 
 # expected wins
 # looks awful, but faster than using list.append() for each
@@ -208,13 +219,19 @@ def plot_ew_data():
 ew_renderers = plot_ew_data()
 
 
+def league_id_handler(attr, old, new):
+    # todo docstring
+
+    pass
+
+
 def week_slider_handler(attr, old, new):
     # todo docstring
 
     start_wk, end_wk = week_slider.value
 
     # don't attempt to filter teams unless two teams are selected
-    if comp_button.button_type == 'success':
+    if comp_button.button_type == 'warning':
         selected_tm_idxs = [owner_to_idx[str(team1_dd.label)], owner_to_idx[str(team2_dd.label)]]
     else:
         selected_tm_idxs = [i for i in range(num_teams)]
@@ -223,7 +240,7 @@ def week_slider_handler(attr, old, new):
     start_wk = round(start_wk)
     end_wk = round(end_wk)
 
-    for i in range(len(sc_rend_list)):
+    for i in range(len(sc_renderers)):
 
         if i in selected_tm_idxs:
 
@@ -232,7 +249,7 @@ def week_slider_handler(attr, old, new):
             selected_ew = team_objs[i].exp_wins[start_wk:end_wk + 1]
             owner = [owners[i]] * (end_wk - start_wk + 1)
 
-            rect_r, sc_line_r = sc_rend_list[i]
+            rect_r, sc_line_r = sc_renderers[i]
             ew_line_r, x_r = ew_renderers[i]
 
             rect_r.data_source.data = dict(x=selected_wks, y=selected_scores, owner=owner)
@@ -262,81 +279,92 @@ def team2_select_handler(attr, old, new):
 def compare_button_handler():
     # todo docstring
 
-    global sc_rend_list
+    global sc_renderers
     global ew_renderers
 
-    # don't perform comparison unless two teams are selected
-    if comp_button.button_type == 'success':
+    selected_tm_idxs = [owner_to_idx[str(team1_dd.label)], owner_to_idx[str(team2_dd.label)]]
 
-        selected_tm_idxs = [owner_to_idx[str(team1_dd.label)], owner_to_idx[str(team2_dd.label)]]
+    num_rend = len(sc_renderers)
 
-        num_rend = len(sc_rend_list)
+    for i in range(num_rend):
 
-        for i in range(num_rend):
+        if i not in selected_tm_idxs:
 
-            if i not in selected_tm_idxs:
+            for j in range(2):
 
-                for j in range(2):
+                # save data to restore when comparison done
+                backup_sc_data[i][j] = sc_renderers[i][j].data_source.data
+                backup_ew_data[i][j] = ew_renderers[i][j].data_source.data
 
-                    # save data to restore when comparison done
-                    backup_sc_data[i][j] = sc_rend_list[i][j].data_source.data
-                    backup_ew_data[i][j] = ew_renderers[i][j].data_source.data
+                # empty data fields hide glyphs from the plot
+                sc_renderers[i][j].data_source.data = dict(x=[], y=[], owner=[])
+                ew_renderers[i][j].data_source.data = dict(x=[], y=[], owner=[])
 
-                    # empty data fields hide glyphs from the plot
-                    sc_rend_list[i][j].data_source.data = dict(x=[], y=[], owner=[])
-                    ew_renderers[i][j].data_source.data = dict(x=[], y=[], owner=[])
+            # save label for recovery after comparison
+            legend_labels[i] = plot1.legend[0].items[i].label
 
-                # save label for recovery after comparison
-                legend_labels[i] = plot1.legend[0].items[i].label
+            # empty labels for legend items hide entries
+            plot1.legend[0].items[i].label = None
+            plot2.legend[0].items[i].label = None
 
-                # empty labels for legend items hide entries
-                plot1.legend[0].items[i].label = None
-                plot2.legend[0].items[i].label = None
+    comp_button.button_type = 'warning'
+    comp_button.label = 'Clear'
 
 
 def clear_button_handler():
     # todo docstring
 
-    global sc_rend_list
+    global sc_renderers
     global ew_renderers
 
-    # don't perform reset unless in a comparison state
-    if comp_button.button_type == 'success':
+    selected_tm_idxs = [owner_to_idx[str(team1_dd.label)], owner_to_idx[str(team2_dd.label)]]
 
-        selected_tm_idxs = [owner_to_idx[str(team1_dd.label)], owner_to_idx[str(team2_dd.label)]]
+    num_rend = len(sc_renderers)
 
-        num_rend = len(sc_rend_list)
+    for i in range(num_rend):
 
-        for i in range(num_rend):
+        if i not in selected_tm_idxs:
 
-            if i not in selected_tm_idxs:
+            for j in range(2):
 
-                for j in range(2):
+                # recover scores, expected wins data
+                sc_renderers[i][j].data_source.data = backup_sc_data[i][j]
+                ew_renderers[i][j].data_source.data = backup_ew_data[i][j]
 
-                    # recover scores, expected wins data
-                    sc_rend_list[i][j].data_source.data = backup_sc_data[i][j]
-                    ew_renderers[i][j].data_source.data = backup_ew_data[i][j]
-
-                # recover label from before comparison
-                plot1.legend[0].items[i].label = legend_labels[i]
-                plot2.legend[0].items[i].label = legend_labels[i]
+            # recover label from before comparison
+            plot1.legend[0].items[i].label = legend_labels[i]
+            plot2.legend[0].items[i].label = legend_labels[i]
 
     # layout displays non-comparison state again
     team1_dd.label = 'Team 1 - Select'
     team2_dd.label = 'Team 2 - Select'
     comp_button.button_type = 'danger'
+    comp_button.label = 'Compare'
 
     # force redraw using weeks slider
     user_selection = week_slider.value
     week_slider.value = (user_selection[0] + 1, user_selection[1])
     week_slider.value = user_selection
 
+
+def helper_handler():
+    # todo docstring
+
+    # for dual functionality of compare / clear button
+    button_to_handler = {
+        'success': compare_button_handler,
+        'warning': clear_button_handler
+    }
+
+    button_to_handler[comp_button.button_type]()
+
+
 # register callbacks to respond to changes in widget values
+lg_id_input.on_change('value', league_id_handler)
 week_slider.on_change('value', week_slider_handler)
 team1_dd.on_change('value', team1_select_handler)
 team2_dd.on_change('value', team2_select_handler)
-comp_button.on_click(compare_button_handler)
-clear_button.on_click(clear_button_handler)
+comp_button.on_click(helper_handler)
 
 # arrange layout
 tab1 = Panel(child=plot1, title='Scores')
