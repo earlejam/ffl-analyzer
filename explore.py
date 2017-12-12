@@ -10,6 +10,35 @@ from datetime import datetime
 from structures import Team
 
 
+def retrieve_lg_info(league_id):
+    # todo docstring
+
+    league = League(league_id, curr_yr)
+
+    teams = league.teams
+    number_teams = league.settings.team_count
+
+    # not available to just pull from league object
+    latest_week = teams[0].wins + teams[0].losses
+
+    # list of owner names as given by their espn accounts
+    all_owners = [tm.owner for tm in teams]
+
+    # to be used for options in dropdown menus
+    owners_list_dd = [(owner, owner) for owner in all_owners]
+
+    # espnff team objects to retrieve data
+    all_team_objs = [Team(tm.owner, tm.scores) for tm in teams]
+
+    # valid regular season weeks
+    all_weeks = [i for i in range(1, latest_week + 1)]
+
+    # given the name of an owner, returns index where it's found in the team objects list
+    owner_to_idx_dict = {tm_obj.owner: index for index, tm_obj in enumerate(all_team_objs)}
+
+    return league, number_teams, latest_week, all_owners, owners_list_dd, all_team_objs, all_weeks, owner_to_idx_dict
+
+
 def get_scores(lg_obj, wk_num):
     """Returns a list of each team's owner and score for the selected week
     :param lg_obj: a League(league_id, year) object for espnff
@@ -31,94 +60,90 @@ def get_scores(lg_obj, wk_num):
     return sorted(scores, reverse=True, key=lambda x: x[1])
 
 
-lg_id_input = TextInput(value="1667721", title="League ID (from URL):")
+def get_line_colors(number_teams):
+    # todo docstring
 
-curr_yr = datetime.today().year
+    colors = all_palettes['Paired'][number_teams]
 
-league_obj = League(int(lg_id_input.value), curr_yr)
+    colors[0] = '#7fe8cd'
 
-teams = league_obj.teams
-num_teams = league_obj.settings.team_count
+    if len(colors) >= 7:
+        colors[6] = '#000000'
 
-# not available to just pull from league object
-week_num = teams[0].wins + teams[0].losses
+    if len(colors) >= 11:
+        colors[10] = '#e6e600'
 
-# list of owner names as given by their espn accounts
-owners = [tm.owner for tm in teams]
+    return colors
 
-owners_list = [(owner, owner) for owner in owners]
 
-team_objs = [Team(tm.owner, tm.scores) for tm in teams]
+def initialize_sc_figure():
+    # todo docstring
 
-# given the name of an owner, returns index where it's found in the team objects list
-owner_to_idx = {tm_obj.owner: index for index, tm_obj in enumerate(team_objs)}
+    sc_hover = HoverTool(tooltips=[
+        ('Week', '@x'),
+        ('Owner', '@owner'),
+        ('Score', '@y{*00.00}'),
+    ])
 
-team1_dd = Dropdown(label='Team 1 - Select', menu=owners_list)
-team2_dd = Dropdown(label='Team 2 - Select', menu=owners_list)
-comp_button = Button(label='Compare', button_type='danger')
+    # try plotting just scores first
+    plot = figure(plot_height=600, plot_width=1000,
+                  title='{} - {} Regular Season'.format(league_obj.settings.name, curr_yr),
+                  x_axis_label='Week',
+                  y_axis_label='Scores',
+                  tools=[sc_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
 
-compare_widgets = column(team1_dd, team2_dd, comp_button)
+    plot.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, week_num + 1)])
 
-week_slider = RangeSlider(title='Weeks', start=1, end=week_num, value=(1, week_num), step=1)
+    return plot
 
-wid_spac1 = Spacer(height=30)
-wid_spac2 = Spacer(height=30)
-wid_spac3 = Spacer(height=30)
 
-all_widgets = column(lg_id_input, wid_spac1, compare_widgets, wid_spac2, week_slider, wid_spac3)
+def initialize_ew_figure():
+    # todo docstring
 
-weeks = [i for i in range(1, week_num + 1)]
+    ew_hover = HoverTool(tooltips=[
+        ('Week', '@x'),
+        ('Owner', '@owner'),
+        ('Expected Wins', '@y{*0.000}'),
+    ])
 
-sc_hover = HoverTool(tooltips=[
-    ('Week', '@x'),
-    ('Owner', '@owner'),
-    ('Score', '@y{*00.00}'),
-])
+    # plotting wins and expected wins in the second tab
+    plot = figure(plot_height=600, plot_width=1000,
+                  title='{} - {} Regular Season'.format(league_obj.settings.name, curr_yr),
+                  x_axis_label='Week',
+                  y_axis_label='Expected Wins',
+                  tools=[ew_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
 
-# try plotting just scores first
-plot1 = figure(plot_height=600, plot_width=1000, title='{} - {} Regular Season'.format(league_obj.settings.name, curr_yr),
-               x_axis_label='Week',
-               y_axis_label='Scores',
-               tools=[sc_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
+    plot.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, week_num + 1)])
 
-plot1.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, week_num + 1)])
+    return plot
 
-ew_hover = HoverTool(tooltips=[
-    ('Week', '@x'),
-    ('Owner', '@owner'),
-    ('Expected Wins', '@y{*0.000}'),
-])
 
-# plotting wins and expected wins in the second tab
-plot2 = figure(plot_height=600, plot_width=1000, title='{} - {} Regular Season'.format(league_obj.settings.name, curr_yr),
-               x_axis_label='Week',
-               y_axis_label='Expected Wins',
-               tools=[ew_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
+def get_sc_sources(all_weeks, team_objects, all_owners, curr_week, number_teams):
+    # todo docstring
 
-plot2.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, week_num + 1)])
+    # scores
+    # looks awful, but faster than using list.append() for each
+    sources = [ColumnDataSource(dict(
+        x=all_weeks,
+        y=team_objects[i].scores[:curr_week],
+        owner=[all_owners[i]] * len(all_weeks)
+    )) for i in range(number_teams)]
 
-line_colors = all_palettes['Paired'][num_teams]
+    return sources
 
-line_colors[0] = '#7fe8cd'
 
-if len(line_colors) >= 7:
-    line_colors[6] = '#000000'
+def get_ew_sources(all_weeks, team_objects, all_owners, curr_week, number_teams):
+    # todo docstring
 
-if len(line_colors) >= 11:
-    line_colors[10] = '#e6e600'
+    # expected wins
+    # looks awful, but faster than using list.append() for each
+    sources = [ColumnDataSource(dict(
+        x=all_weeks,
+        y=team_objects[i].exp_wins[1:curr_week + 1],
+        owner=[all_owners[i]] * len(all_weeks)
+    )) for i in range(number_teams)]
 
-# scores
-# looks awful, but faster than using list.append() for each
-sc_sources = [ColumnDataSource(dict(
-    x=weeks,
-    y=team_objs[i].scores[:week_num],
-    owner=[owners[i]] * len(weeks)
-)) for i in range(num_teams)]
-
-# will use to avoid re-computation of data after comparisons
-backup_sc_data = [[[], []] for i in range(num_teams)]
-backup_ew_data = [[[], []] for i in range(num_teams)]
-legend_labels = ['' for i in range(num_teams)]
+    return sources
 
 
 def plot_sc_data():
@@ -148,41 +173,6 @@ def plot_sc_data():
     plot1.legend.click_policy = 'mute'
 
     return sc_rend_list
-
-
-sc_renderers = plot_sc_data()
-
-
-def compile_expected_wins(league, team_objects, all_weeks, ownr_to_idx, number_teams):
-    # todo docstring
-
-    # compile expected wins
-    for week in all_weeks:
-
-        all_scores = get_scores(league, week)
-
-        for i, (owner, score) in enumerate(all_scores):
-
-            tgt_team = team_objects[ownr_to_idx[owner]]
-
-            # e.g., 12-team league, 2nd highest scorer would lose one matchup --> 1 - (1 * 1/11) = .909 expected wins
-            ew_this_week = 1 - (i * (1/(number_teams - 1)))
-
-            # determine new expected wins total and store
-            cumul_ew = tgt_team.exp_wins[week - 1]
-            new_cumul_ew = cumul_ew + ew_this_week
-            tgt_team.exp_wins.append(new_cumul_ew)
-
-
-compile_expected_wins(league_obj, team_objs, weeks, owner_to_idx, num_teams)
-
-# expected wins
-# looks awful, but faster than using list.append() for each
-ew_sources = [ColumnDataSource(dict(
-    x=weeks,
-    y=team_objs[i].exp_wins[1:week_num + 1],
-    owner=[owners[i]] * len(weeks)
-)) for i in range(num_teams)]
 
 
 def plot_ew_data():
@@ -216,7 +206,25 @@ def plot_ew_data():
     return ew_rend_list
 
 
-ew_renderers = plot_ew_data()
+def compile_expected_wins(league, team_objects, all_weeks, ownr_to_idx, number_teams):
+    # todo docstring
+
+    # compile expected wins
+    for week in all_weeks:
+
+        all_scores = get_scores(league, week)
+
+        for i, (owner, score) in enumerate(all_scores):
+
+            tgt_team = team_objects[ownr_to_idx[owner]]
+
+            # e.g., 12-team league, 2nd highest scorer would lose one matchup --> 1 - (1 * 1/11) = .909 expected wins
+            ew_this_week = 1 - (i * (1/(number_teams - 1)))
+
+            # determine new expected wins total and store
+            cumul_ew = tgt_team.exp_wins[week - 1]
+            new_cumul_ew = cumul_ew + ew_this_week
+            tgt_team.exp_wins.append(new_cumul_ew)
 
 
 def league_id_handler(attr, old, new):
@@ -359,7 +367,39 @@ def helper_handler():
     button_to_handler[comp_button.button_type]()
 
 
-# register callbacks to respond to changes in widget values
+lg_id_input = TextInput(value="22464", title="League ID (from URL):")
+
+curr_yr = datetime.today().year
+
+league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(lg_id_input.value))
+
+team1_dd = Dropdown(label='Team 1 - Select', menu=owners_list)
+team2_dd = Dropdown(label='Team 2 - Select', menu=owners_list)
+comp_button = Button(label='Compare', button_type='danger')
+
+week_slider = RangeSlider(title='Weeks', start=1, end=week_num, value=(1, week_num), step=1)
+
+plot1 = initialize_sc_figure()
+plot2 = initialize_ew_figure()
+
+line_colors = get_line_colors(num_teams)
+
+sc_sources = get_sc_sources(weeks, team_objs, owners, week_num, num_teams)
+
+# will use to avoid re-computation of data after comparisons
+backup_sc_data = [[[], []] for i in range(num_teams)]
+backup_ew_data = [[[], []] for i in range(num_teams)]
+legend_labels = ['' for i in range(num_teams)]
+
+sc_renderers = plot_sc_data()
+
+compile_expected_wins(league_obj, team_objs, weeks, owner_to_idx, num_teams)
+
+ew_sources = get_ew_sources(weeks, team_objs, owners, week_num, num_teams)
+
+ew_renderers = plot_ew_data()
+
+# register callback handlers to respond to changes in widget values
 lg_id_input.on_change('value', league_id_handler)
 week_slider.on_change('value', week_slider_handler)
 team1_dd.on_change('value', team1_select_handler)
@@ -371,6 +411,14 @@ tab1 = Panel(child=plot1, title='Scores')
 tab2 = Panel(child=plot2, title='Expected Wins')
 
 figures = Tabs(tabs=[tab1, tab2])
+
+compare_widgets = column(team1_dd, team2_dd, comp_button)
+
+wid_spac1 = Spacer(height=30)
+wid_spac2 = Spacer(height=30)
+wid_spac3 = Spacer(height=30)
+
+all_widgets = column(lg_id_input, wid_spac1, compare_widgets, wid_spac2, week_slider, wid_spac3)
 
 page_title = Div(text="""<strong><h1 style="font-size: 2.5em;">ESPN Fantasy Football League Explorer</h1></strong>""",
                  width=700, height=50)
