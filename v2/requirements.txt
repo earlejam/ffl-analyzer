@@ -1,0 +1,2 @@
+bokeh==0.12.10
+git+git://github.com/rbarton65/espnff.git#egg=espnff
