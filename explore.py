@@ -5,7 +5,7 @@ from bokeh.models import HoverTool, ResetTool, SaveTool, WheelZoomTool, BoxZoomT
 from bokeh.models.widgets import Dropdown, Button, RangeSlider, Div, TextInput, Panel, Tabs
 from bokeh.models.tickers import FixedTicker
 from bokeh.palettes import all_palettes
-from espnff import League
+from espnff import League, PrivateLeagueException, InvalidLeagueException
 from datetime import datetime
 from structures import Team
 import logging
@@ -17,30 +17,49 @@ logging.root.setLevel(logging.ERROR)
 def retrieve_lg_info(league_id):
     # todo docstring
 
-    league = League(league_id, curr_yr)
+    # flag for whether league access was successful
+    all_good = True
 
-    teams = league.teams
-    number_teams = league.settings.team_count
+    try:
+        league = League(league_id, curr_yr)
 
-    # not available to just pull from league object
-    latest_week = teams[0].wins + teams[0].losses
+    except PrivateLeagueException:
+        lg_id_message.text = ('<p style="color: red;">League not viewable by public. '
+                              '<a href="http://support.espn.com/articles/en_US/FAQ/Making-a-Private-League-'
+                              'Viewable-to-the-Public?section=Fantasy-Football" target="_blank">How to Resolve</a></p>')
+        all_good = False
 
-    # list of owner names as given by their espn accounts
-    all_owners = [tm.owner for tm in teams]
+    except InvalidLeagueException:
+        lg_id_message.text = '<p style="color: red;">League with id {} does not exist.</p>'.format(league_id)
 
-    # to be used for options in dropdown menus
-    owners_list_dd = [(owner, owner) for owner in all_owners]
+        all_good = False
 
-    # espnff team objects to retrieve data
-    all_team_objs = [Team(tm.owner, tm.scores) for tm in teams]
+    if all_good:
 
-    # valid regular season weeks
-    all_weeks = [i for i in range(1, latest_week + 1)]
+        lg_id_message.text = '<p style="color: green;">League accessed successfully.</p>'
 
-    # given the name of an owner, returns index where it's found in the team objects list
-    owner_to_idx_dict = {tm_obj.owner: index for index, tm_obj in enumerate(all_team_objs)}
+        teams = league.teams
+        number_teams = league.settings.team_count
 
-    return league, number_teams, latest_week, all_owners, owners_list_dd, all_team_objs, all_weeks, owner_to_idx_dict
+        # not available to just pull from league object
+        latest_week = teams[0].wins + teams[0].losses
+
+        # list of owner names as given by their espn accounts
+        all_owners = [tm.owner for tm in teams]
+
+        # to be used for options in dropdown menus
+        owners_list_dd = [(owner, owner) for owner in all_owners]
+
+        # espnff team objects to retrieve data
+        all_team_objs = [Team(tm.owner, tm.scores) for tm in teams]
+
+        # valid regular season weeks
+        all_weeks = [i for i in range(1, latest_week + 1)]
+
+        # given the name of an owner, returns index where it's found in the team objects list
+        owner_to_idx_dict = {tm_obj.owner: index for index, tm_obj in enumerate(all_team_objs)}
+
+        return league, number_teams, latest_week, all_owners, owners_list_dd, all_team_objs, all_weeks, owner_to_idx_dict
 
 
 def get_scores(lg_obj, wk_num):
@@ -160,10 +179,11 @@ def plot_sc_data(team_objects, score_sources, colors):
         first_name = tm_obj.owner.split(' ')[0]
 
         r = plot1.rect('x', 'y', source=score_sources[idx], width=.5, height=1.2, fill_color=colors[idx], fill_alpha=0.95,
-                       line_color=colors[idx], muted_color=colors[idx], muted_alpha=0.05)
+                       line_color=colors[idx], muted_color=colors[idx], muted_alpha=0.05, hover_alpha=1,
+                       hover_color=colors[idx], hover_line_alpha=1)
 
-        l = plot1.line('x', 'y', source=score_sources[idx], line_color=colors[idx], line_alpha=0.35, line_dash='dashed',
-                       muted_color=colors[idx], muted_alpha=0.05)
+        l = plot1.line('x', 'y', source=score_sources[idx], line_color='black', line_alpha=0.08, line_dash='dashed',
+                       muted_color=colors[idx], muted_alpha=0.05, hover_color=colors[idx], hover_alpha=1)
 
         sc_rend_list.append((r, l))
         sc_legend_items.append(('{}  '.format(first_name), [r, l]))
@@ -418,6 +438,8 @@ def helper_handler():
 
 lg_id_input = TextInput(value='1667721', title='League ID (from URL):')
 
+lg_id_message = Div(text='<p style="color: green;">League accessed successfully.</p>')
+
 curr_yr = datetime.today().year
 
 league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(lg_id_input.value))
@@ -470,7 +492,7 @@ wid_spac1 = Spacer(height=30)
 wid_spac2 = Spacer(height=30)
 wid_spac3 = Spacer(height=30)
 
-all_widgets = column(lg_id_input, wid_spac1, compare_widgets, wid_spac2, week_slider, wid_spac3)
+all_widgets = column(lg_id_input, lg_id_message, wid_spac1, compare_widgets, wid_spac2, week_slider, wid_spac3)
 
 page_title = Div(text="""<strong><h1 style="font-size: 2.5em;">ESPN Fantasy Football League Explorer</h1></strong>""",
                  width=700, height=50)
