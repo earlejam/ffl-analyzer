@@ -8,6 +8,10 @@ from bokeh.palettes import all_palettes
 from espnff import League
 from datetime import datetime
 from structures import Team
+import logging
+
+# hide bokeh warnings, but show errors and above
+logging.root.setLevel(logging.ERROR)
 
 
 def retrieve_lg_info(league_id):
@@ -76,7 +80,7 @@ def get_line_colors(number_teams):
     return colors
 
 
-def initialize_sc_figure():
+def initialize_sc_figure(league, curr_week):
     # todo docstring
 
     sc_hover = HoverTool(tooltips=[
@@ -87,17 +91,17 @@ def initialize_sc_figure():
 
     # try plotting just scores first
     plot = figure(plot_height=600, plot_width=1000,
-                  title='{} - {} Regular Season'.format(league_obj.settings.name, curr_yr),
+                  title='{} - {} Regular Season'.format(league.settings.name, curr_yr),
                   x_axis_label='Week',
                   y_axis_label='Scores',
                   tools=[sc_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
 
-    plot.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, week_num + 1)])
+    plot.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, curr_week + 1)])
 
     return plot
 
 
-def initialize_ew_figure():
+def initialize_ew_figure(league, curr_week):
     # todo docstring
 
     ew_hover = HoverTool(tooltips=[
@@ -108,12 +112,12 @@ def initialize_ew_figure():
 
     # plotting wins and expected wins in the second tab
     plot = figure(plot_height=600, plot_width=1000,
-                  title='{} - {} Regular Season'.format(league_obj.settings.name, curr_yr),
+                  title='{} - {} Regular Season'.format(league.settings.name, curr_yr),
                   x_axis_label='Week',
                   y_axis_label='Expected Wins',
                   tools=[ew_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
 
-    plot.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, week_num + 1)])
+    plot.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, curr_week + 1)])
 
     return plot
 
@@ -146,20 +150,20 @@ def get_ew_sources(all_weeks, team_objects, all_owners, curr_week, number_teams)
     return sources
 
 
-def plot_sc_data():
+def plot_sc_data(team_objects, score_sources, colors):
     # todo docstring
 
     sc_rend_list = []
     sc_legend_items = []
 
-    for idx, tm_obj in enumerate(team_objs):
+    for idx, tm_obj in enumerate(team_objects):
         first_name = tm_obj.owner.split(' ')[0]
 
-        r = plot1.rect('x', 'y', source=sc_sources[idx], width=.5, height=1.2, fill_color=line_colors[idx], fill_alpha=0.95,
-                       line_color=line_colors[idx], muted_color=line_colors[idx], muted_alpha=0.05)
+        r = plot1.rect('x', 'y', source=score_sources[idx], width=.5, height=1.2, fill_color=colors[idx], fill_alpha=0.95,
+                       line_color=colors[idx], muted_color=colors[idx], muted_alpha=0.05)
 
-        l = plot1.line('x', 'y', source=sc_sources[idx], line_color=line_colors[idx], line_alpha=0.35, line_dash='dashed',
-                       muted_color=line_colors[idx], muted_alpha=0.05)
+        l = plot1.line('x', 'y', source=score_sources[idx], line_color=colors[idx], line_alpha=0.35, line_dash='dashed',
+                       muted_color=colors[idx], muted_alpha=0.05)
 
         sc_rend_list.append((r, l))
         sc_legend_items.append(('{}  '.format(first_name), [r, l]))
@@ -171,25 +175,26 @@ def plot_sc_data():
 
     plot1.add_layout(sc_legend, 'above')
     plot1.legend.click_policy = 'mute'
+    plot1.legend.border_line_alpha = 0
 
     return sc_rend_list
 
 
-def plot_ew_data():
+def plot_ew_data(team_objects, exp_wins_sources, colors):
     # todo docstring
 
     ew_rend_list = []
     ew_legend_items = []
 
-    for idx, tm_obj in enumerate(team_objs):
+    for idx, tm_obj in enumerate(team_objects):
 
         f_name = tm_obj.owner.split(' ')[0]
 
-        l = plot2.line('x', 'y', source=ew_sources[idx], line_color=line_colors[idx], line_alpha=0.95,
-                       muted_color=line_colors[idx], muted_alpha=0.05, line_width=1.5)
+        l = plot2.line('x', 'y', source=exp_wins_sources[idx], line_color=colors[idx], line_alpha=0.95,
+                       muted_color=colors[idx], muted_alpha=0.05, line_width=1.5)
 
-        x = plot2.square('x', 'y', size=4, source=ew_sources[idx], fill_color=line_colors[idx], line_alpha=0.95,
-                         muted_color=line_colors[idx], muted_alpha=0.05, line_color=line_colors[idx], line_width=1.5)
+        x = plot2.square('x', 'y', size=4, source=exp_wins_sources[idx], fill_color=colors[idx], line_alpha=0.95,
+                         muted_color=colors[idx], muted_alpha=0.05, line_color=colors[idx], line_width=1.5)
 
         ew_rend_list.append((l, x))
         ew_legend_items.append(('{}  '.format(f_name), [l, x]))
@@ -200,8 +205,8 @@ def plot_ew_data():
     ew_legend = Legend(items=ew_legend_items, location=(0, 13), orientation='horizontal')
 
     plot2.add_layout(ew_legend, 'above')
-
     plot2.legend.click_policy = 'mute'
+    plot2.legend.border_line_alpha = 0
 
     return ew_rend_list
 
@@ -230,7 +235,44 @@ def compile_expected_wins(league, team_objects, all_weeks, ownr_to_idx, number_t
 def league_id_handler(attr, old, new):
     # todo docstring
 
-    pass
+    global league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx
+    global plot1, plot2, line_colors, backup_sc_data, backup_ew_data, legend_labels
+    global sc_sources, ew_sources, sc_renderers, ew_renderers
+    global layout
+
+    league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(new))
+
+    plot1 = initialize_sc_figure(league_obj, week_num)
+    plot2 = initialize_ew_figure(league_obj, week_num)
+
+    line_colors = get_line_colors(num_teams)
+
+    sc_sources = get_sc_sources(weeks, team_objs, owners, week_num, num_teams)
+    sc_renderers = plot_sc_data(team_objs, sc_sources, line_colors)
+
+    compile_expected_wins(league_obj, team_objs, weeks, owner_to_idx, num_teams)
+
+    ew_sources = get_ew_sources(weeks, team_objs, owners, week_num, num_teams)
+    ew_renderers = plot_ew_data(team_objs, ew_sources, line_colors)
+
+    # force bokeh to update figures
+    plot1_wrap.children[0] = plot1
+    plot2_wrap.children[0] = plot2
+
+    # will use to avoid re-computation of data after comparisons
+    backup_sc_data = [[[], []] for _ in range(num_teams)]
+    backup_ew_data = [[[], []] for _ in range(num_teams)]
+    legend_labels = ['' for _ in range(num_teams)]
+
+    team1_dd.disabled = False
+    team2_dd.disabled = False
+    team1_dd.label = 'Team 1 - Select'
+    team2_dd.label = 'Team 2 - Select'
+    team1_dd.menu = owners_list
+    team2_dd.menu = owners_list
+    comp_button.button_type = 'danger'
+    week_slider.end = week_num
+    week_slider.value = (1, week_num)
 
 
 def week_slider_handler(attr, old, new):
@@ -271,7 +313,7 @@ def team1_select_handler(attr, old, new):
 
     team1_dd.label = str(team1_dd.value)
 
-    if 'Select' not in team1_dd.label and 'Select' not in team2_dd.label:
+    if 'Select' not in team1_dd.label and 'Select' not in team2_dd.label and comp_button.button_type == 'danger':
         comp_button.button_type = 'success'
 
 
@@ -280,7 +322,7 @@ def team2_select_handler(attr, old, new):
 
     team2_dd.label = str(team2_dd.value)
 
-    if 'Select' not in team1_dd.label and 'Select' not in team2_dd.label:
+    if 'Select' not in team1_dd.label and 'Select' not in team2_dd.label and comp_button.button_type == 'danger':
         comp_button.button_type = 'success'
 
 
@@ -289,6 +331,9 @@ def compare_button_handler():
 
     global sc_renderers
     global ew_renderers
+
+    team1_dd.disabled = True
+    team2_dd.disabled = True
 
     selected_tm_idxs = [owner_to_idx[str(team1_dd.label)], owner_to_idx[str(team2_dd.label)]]
 
@@ -354,6 +399,9 @@ def clear_button_handler():
     week_slider.value = (user_selection[0] + 1, user_selection[1])
     week_slider.value = user_selection
 
+    team1_dd.disabled = False
+    team2_dd.disabled = False
+
 
 def helper_handler():
     # todo docstring
@@ -364,10 +412,11 @@ def helper_handler():
         'warning': clear_button_handler
     }
 
-    button_to_handler[comp_button.button_type]()
+    if comp_button.button_type in ['success', 'warning']:
+        button_to_handler[comp_button.button_type]()
 
 
-lg_id_input = TextInput(value="22464", title="League ID (from URL):")
+lg_id_input = TextInput(value='1667721', title='League ID (from URL):')
 
 curr_yr = datetime.today().year
 
@@ -379,25 +428,28 @@ comp_button = Button(label='Compare', button_type='danger')
 
 week_slider = RangeSlider(title='Weeks', start=1, end=week_num, value=(1, week_num), step=1)
 
-plot1 = initialize_sc_figure()
-plot2 = initialize_ew_figure()
+plot1 = initialize_sc_figure(league_obj, week_num)
+plot2 = initialize_ew_figure(league_obj, week_num)
+
+plot1_wrap = column(children=[plot1])
+plot2_wrap = column(children=[plot2])
 
 line_colors = get_line_colors(num_teams)
 
 sc_sources = get_sc_sources(weeks, team_objs, owners, week_num, num_teams)
 
 # will use to avoid re-computation of data after comparisons
-backup_sc_data = [[[], []] for i in range(num_teams)]
-backup_ew_data = [[[], []] for i in range(num_teams)]
-legend_labels = ['' for i in range(num_teams)]
+backup_sc_data = [[[], []] for _ in range(num_teams)]
+backup_ew_data = [[[], []] for _ in range(num_teams)]
+legend_labels = ['' for _ in range(num_teams)]
 
-sc_renderers = plot_sc_data()
+sc_renderers = plot_sc_data(team_objs, sc_sources, line_colors)
 
 compile_expected_wins(league_obj, team_objs, weeks, owner_to_idx, num_teams)
 
 ew_sources = get_ew_sources(weeks, team_objs, owners, week_num, num_teams)
 
-ew_renderers = plot_ew_data()
+ew_renderers = plot_ew_data(team_objs, ew_sources, line_colors)
 
 # register callback handlers to respond to changes in widget values
 lg_id_input.on_change('value', league_id_handler)
@@ -407,8 +459,8 @@ team2_dd.on_change('value', team2_select_handler)
 comp_button.on_click(helper_handler)
 
 # arrange layout
-tab1 = Panel(child=plot1, title='Scores')
-tab2 = Panel(child=plot2, title='Expected Wins')
+tab1 = Panel(child=plot1_wrap, title='Scores')
+tab2 = Panel(child=plot2_wrap, title='Expected Wins')
 
 figures = Tabs(tabs=[tab1, tab2])
 
