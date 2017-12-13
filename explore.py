@@ -24,19 +24,20 @@ def retrieve_lg_info(league_id):
         league = League(league_id, curr_yr)
 
     except PrivateLeagueException:
-        lg_id_message.text = ('<p style="color: red;">League not viewable by public. '
+        lg_id_message.text = ('<b><p style="color: red;">League not viewable by public. '
                               '<a href="http://support.espn.com/articles/en_US/FAQ/Making-a-Private-League-'
-                              'Viewable-to-the-Public?section=Fantasy-Football" target="_blank">How to Resolve</a></p>')
+                              'Viewable-to-the-Public?section=Fantasy-Football" target="_blank">'
+                              'How to Resolve</a></p></b>')
         all_good = False
 
     except InvalidLeagueException:
-        lg_id_message.text = '<p style="color: red;">League with id {} does not exist.</p>'.format(league_id)
+        lg_id_message.text = '<b><p style="color: red;">League with id {} does not exist.</p></b>'.format(league_id)
 
         all_good = False
 
     if all_good:
 
-        lg_id_message.text = '<p style="color: green;">League accessed successfully.</p>'
+        lg_id_message.text = '<b><p style="color: #fcbf16;">Compiling data for League {}</p></b>'.format(league_id)
 
         teams = league.teams
         number_teams = league.settings.team_count
@@ -277,6 +278,10 @@ def league_id_handler(attr, old, new):
 
     # force bokeh to update figures
     plot1_wrap.children[0] = plot1
+
+    # notify user of success
+    lg_id_message.text = '<b><p style="color: green;">League accessed successfully.</p></b>'
+
     plot2_wrap.children[0] = plot2
 
     # will use to avoid re-computation of data after comparisons
@@ -438,7 +443,7 @@ def helper_handler():
 
 lg_id_input = TextInput(value='1667721', title='League ID (from URL):')
 
-lg_id_message = Div(text='<p style="color: green;">League accessed successfully.</p>')
+lg_id_message = Div(text='<b><p style="color: green;">League accessed successfully.</p></b>')
 
 curr_yr = datetime.today().year
 
@@ -491,6 +496,8 @@ compare_widgets = column(team1_dd, team2_dd, comp_button)
 wid_spac1 = Spacer(height=30)
 wid_spac2 = Spacer(height=30)
 wid_spac3 = Spacer(height=30)
+
+lg_id_message.text = '<b><p style="color: green;">League accessed successfully.</p></b>'
 
 all_widgets = column(lg_id_input, lg_id_message, wid_spac1, compare_widgets, wid_spac2, week_slider, wid_spac3)
 
