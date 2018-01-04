@@ -91,11 +91,17 @@ def get_line_colors(number_teams):
 
     colors[0] = '#7fe8cd'
 
+    if len(colors) >= 5:
+        colors[4] = '#828081'
+
     if len(colors) >= 7:
         colors[6] = '#000000'
 
+    if len(colors) >= 9:
+        colors[8] = '#592724'
+
     if len(colors) >= 11:
-        colors[10] = '#e6e600'
+        colors[10] = '#0f4c30'
 
     return colors
 
@@ -445,7 +451,8 @@ lg_id_input = TextInput(value='1667721', title='League ID (from URL):')
 
 lg_id_message = Div(text='<b><p style="color: green;">League accessed successfully.</p></b>')
 
-curr_yr = datetime.today().year
+# curr_yr = datetime.today().year
+curr_yr = '2017'
 
 league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(lg_id_input.value))
 
