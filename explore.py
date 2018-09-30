@@ -2,7 +2,7 @@ from bokeh.io import curdoc
 from bokeh.plotting import figure, ColumnDataSource
 from bokeh.layouts import row, column, widgetbox
 from bokeh.models import HoverTool, ResetTool, SaveTool, WheelZoomTool, BoxZoomTool, PanTool, Spacer, Range1d, Legend
-from bokeh.models.widgets import Dropdown, Button, RangeSlider, Div, TextInput, Panel, Tabs
+from bokeh.models.widgets import Dropdown, Button, RangeSlider, Div, TextInput, Panel, Tabs, DataTable, TableColumn
 from bokeh.models.tickers import FixedTicker
 from bokeh.palettes import all_palettes
 from espnff import League, PrivateLeagueException, InvalidLeagueException
@@ -14,15 +14,16 @@ import logging
 logging.root.setLevel(logging.ERROR)
 
 
-def retrieve_lg_info(league_id):
+def retrieve_lg_info(league_id, year):
     # todo docstring
 
     # flag for whether league access was successful
     all_good = True
 
     try:
-        league = League(league_id, curr_yr)
+        league = League(league_id, year)
 
+    # todo function for wrapping with this style
     except PrivateLeagueException:
         lg_id_message.text = ('<b><p style="color: red;">League not viewable by public. '
                               '<a href="http://support.espn.com/articles/en_US/FAQ/Making-a-Private-League-'
@@ -86,7 +87,7 @@ def get_scores(lg_obj, wk_num):
 
 def get_line_colors(number_teams):
     # todo docstring
-
+    # todo - this is hacky - refactor
     colors = all_palettes['Paired'][number_teams]
 
     colors[0] = '#7fe8cd'
@@ -117,7 +118,7 @@ def initialize_sc_figure(league, curr_week):
 
     # try plotting just scores first
     plot = figure(plot_height=600, plot_width=1000,
-                  title='{} - {} Regular Season'.format(league.settings.name, curr_yr),
+                  title='{} - {} Regular Season'.format(league.settings.name, default_yr),
                   x_axis_label='Week',
                   y_axis_label='Scores',
                   tools=[sc_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
@@ -138,7 +139,7 @@ def initialize_ew_figure(league, curr_week):
 
     # plotting wins and expected wins in the second tab
     plot = figure(plot_height=600, plot_width=1000,
-                  title='{} - {} Regular Season'.format(league.settings.name, curr_yr),
+                  title='{} - {} Regular Season'.format(league.settings.name, default_yr),
                   x_axis_label='Week',
                   y_axis_label='Expected Wins',
                   tools=[ew_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
@@ -146,6 +147,22 @@ def initialize_ew_figure(league, curr_week):
     plot.xaxis.ticker = FixedTicker(ticks=[i for i in range(1, curr_week + 1)])
 
     return plot
+
+
+def initialize_ew_table(team_objects, week_number, number_teams):
+    # todo docstring
+
+    table_sources = get_table_sources(team_objects, week_number, number_teams)
+
+    table_columns = [
+        TableColumn(field='rank', title='Rank'),
+        TableColumn(field='owner', title='Owner'),
+        TableColumn(field='wins', title='Wins'),
+        TableColumn(field='ew', title='Expected Wins'),
+        TableColumn(field='diff', title='Difference')
+    ]
+
+    return DataTable(source=table_sources, columns=table_columns, width=600, height=500, sortable=True)
 
 
 def get_sc_sources(all_weeks, team_objects, all_owners, curr_week, number_teams):
@@ -174,6 +191,32 @@ def get_ew_sources(all_weeks, team_objects, all_owners, curr_week, number_teams)
     )) for i in range(number_teams)]
 
     return sources
+
+
+def get_table_sources(team_objects, curr_week, number_teams):
+    # todo docstring
+
+    teams_by_ew = sorted(team_objects, key=lambda x: x.exp_wins[curr_week], reverse=True)
+    owners_wins = {team.owner: team.wins for team in league_obj.teams}
+
+    rankings = [1] * number_teams
+
+    rank = 1
+    for idx in range(number_teams):
+        if (idx != 0) and teams_by_ew[idx].exp_wins[curr_week] < teams_by_ew[idx - 1].exp_wins[curr_week]:
+            rank = idx + 1
+
+        rankings[idx] = rank
+
+    sources = dict(
+        rank=[rankings[i] for i in range(number_teams)],
+        owner=[teams_by_ew[i].owner for i in range(number_teams)],
+        wins=[owners_wins[teams_by_ew[i].owner] for i in range(number_teams)],
+        ew=[round(teams_by_ew[i].exp_wins[curr_week], 3) for i in range(number_teams)],
+        diff=[round(owners_wins[teams_by_ew[i].owner] - teams_by_ew[i].exp_wins[curr_week], 3) for i in range(number_teams)]
+    )
+
+    return ColumnDataSource(sources)
 
 
 def plot_sc_data(team_objects, score_sources, colors):
@@ -267,7 +310,7 @@ def league_id_handler(attr, old, new):
     global sc_sources, ew_sources, sc_renderers, ew_renderers
     global layout
 
-    league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(new))
+    league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(new), int(lg_id_input.value))
 
     plot1 = initialize_sc_figure(league_obj, week_num)
     plot2 = initialize_ew_figure(league_obj, week_num)
@@ -447,20 +490,79 @@ def helper_handler():
         button_to_handler[comp_button.button_type]()
 
 
+def season_handler(attr, old, new):
+    # todo docstring
+
+    global league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx
+    global plot1, plot2, line_colors, backup_sc_data, backup_ew_data, legend_labels
+    global sc_sources, ew_sources, sc_renderers, ew_renderers
+    global layout
+
+    league_id = lg_id_input.value
+
+    league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(league_id, int(new))
+
+    plot1 = initialize_sc_figure(league_obj, week_num)
+    plot2 = initialize_ew_figure(league_obj, week_num)
+
+    line_colors = get_line_colors(num_teams)
+
+    sc_sources = get_sc_sources(weeks, team_objs, owners, week_num, num_teams)
+    sc_renderers = plot_sc_data(team_objs, sc_sources, line_colors)
+
+    compile_expected_wins(league_obj, team_objs, weeks, owner_to_idx, num_teams)
+
+    ew_sources = get_ew_sources(weeks, team_objs, owners, week_num, num_teams)
+    ew_renderers = plot_ew_data(team_objs, ew_sources, line_colors)
+
+    # force bokeh to update figures
+    plot1_wrap.children[0] = plot1
+
+    # notify user of success
+    lg_id_message.text = '<b><p style="color: green;">League accessed successfully.</p></b>'
+
+    plot2_wrap.children[0] = plot2
+
+    ew_table = initialize_ew_table(team_objs, week_num, num_teams)
+
+    table_wrap.children[0] = ew_table
+
+    # will use to avoid re-computation of data after comparisons
+    backup_sc_data = [[[], []] for _ in range(num_teams)]
+    backup_ew_data = [[[], []] for _ in range(num_teams)]
+    legend_labels = ['' for _ in range(num_teams)]
+
+    team1_dd.disabled = False
+    team2_dd.disabled = False
+    team1_dd.label = 'Team 1 - Select'
+    team2_dd.label = 'Team 2 - Select'
+    team1_dd.menu = owners_list
+    team2_dd.menu = owners_list
+    comp_button.button_type = 'danger'
+    week_slider.end = week_num
+    week_slider.value = (1, week_num)
+
+
 lg_id_input = TextInput(value='1667721', title='League ID (from URL):')
 
 lg_id_message = Div(text='<b><p style="color: green;">League accessed successfully.</p></b>')
 
-# curr_yr = datetime.today().year
-curr_yr = '2017'
+september_month = 9
+today = datetime.today()
 
-league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(lg_id_input.value))
+if today.month < september_month:
+    default_yr = str(today.year - 1)
+else:
+    default_yr = str(today.year)
+
+league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(lg_id_input.value), default_yr)
 
 team1_dd = Dropdown(label='Team 1 - Select', menu=owners_list)
 team2_dd = Dropdown(label='Team 2 - Select', menu=owners_list)
 comp_button = Button(label='Compare', button_type='danger')
 
 week_slider = RangeSlider(title='Weeks', start=1, end=week_num, value=(1, week_num), step=1)
+year_input = TextInput(value=str(default_yr), title='Season:')
 
 plot1 = initialize_sc_figure(league_obj, week_num)
 plot2 = initialize_ew_figure(league_obj, week_num)
@@ -483,6 +585,9 @@ compile_expected_wins(league_obj, team_objs, weeks, owner_to_idx, num_teams)
 
 ew_sources = get_ew_sources(weeks, team_objs, owners, week_num, num_teams)
 
+expected_wins_table = initialize_ew_table(team_objs, week_num, num_teams)
+table_wrap = column(children=[expected_wins_table])
+
 ew_renderers = plot_ew_data(team_objs, ew_sources, line_colors)
 
 # register callback handlers to respond to changes in widget values
@@ -491,12 +596,14 @@ week_slider.on_change('value', week_slider_handler)
 team1_dd.on_change('value', team1_select_handler)
 team2_dd.on_change('value', team2_select_handler)
 comp_button.on_click(helper_handler)
+year_input.on_change('value', season_handler)
 
 # arrange layout
 tab1 = Panel(child=plot1_wrap, title='Scores')
 tab2 = Panel(child=plot2_wrap, title='Expected Wins')
+tab3 = Panel(child=table_wrap, title='Summary')
 
-figures = Tabs(tabs=[tab1, tab2])
+figures = Tabs(tabs=[tab1, tab2, tab3], width=500)
 
 compare_widgets = column(team1_dd, team2_dd, comp_button)
 
@@ -506,7 +613,7 @@ wid_spac3 = Spacer(height=30)
 
 lg_id_message.text = '<b><p style="color: green;">League accessed successfully.</p></b>'
 
-all_widgets = column(lg_id_input, lg_id_message, wid_spac1, compare_widgets, wid_spac2, week_slider, wid_spac3)
+all_widgets = column(lg_id_input, lg_id_message, wid_spac1, compare_widgets, wid_spac2, week_slider, wid_spac3, year_input)
 
 page_title = Div(text="""<strong><h1 style="font-size: 2.5em;">ESPN Fantasy Football League Explorer</h1></strong>""",
                  width=700, height=50)
