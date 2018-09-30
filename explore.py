@@ -5,7 +5,7 @@ from bokeh.models import HoverTool, ResetTool, SaveTool, WheelZoomTool, BoxZoomT
 from bokeh.models.widgets import Dropdown, Button, RangeSlider, Div, TextInput, Panel, Tabs, DataTable, TableColumn
 from bokeh.models.tickers import FixedTicker
 from bokeh.palettes import all_palettes
-from espnff import League, PrivateLeagueException, InvalidLeagueException
+from espnff import League, PrivateLeagueException, InvalidLeagueException, UnknownLeagueException
 from datetime import datetime
 from structures import Team
 import logging
@@ -33,12 +33,15 @@ def retrieve_lg_info(league_id, year):
 
     except InvalidLeagueException:
         lg_id_message.text = '<b><p style="color: red;">League with id {} does not exist.</p></b>'.format(league_id)
+        all_good = False
 
+    except UnknownLeagueException:
+        lg_id_message.text = '<b><p style="color: red;">{} Season for league with id {} does not exist.</p></b>'.format(year, league_id)
         all_good = False
 
     if all_good:
 
-        lg_id_message.text = '<b><p style="color: #fcbf16;">Compiling data for League {}</p></b>'.format(league_id)
+        lg_id_message.text = '<b><p style="color: #fcbf16;">Compiling data for League {}, \n{} Season</p></b>'.format(league_id, year)
 
         teams = league.teams
         number_teams = league.settings.team_count
@@ -118,7 +121,7 @@ def initialize_sc_figure(league, curr_week):
 
     # try plotting just scores first
     plot = figure(plot_height=600, plot_width=1000,
-                  title='{} - {} Regular Season'.format(league.settings.name, default_yr),
+                  title='{} - {} Regular Season'.format(league.settings.name, year_input.value),
                   x_axis_label='Week',
                   y_axis_label='Scores',
                   tools=[sc_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
@@ -139,7 +142,7 @@ def initialize_ew_figure(league, curr_week):
 
     # plotting wins and expected wins in the second tab
     plot = figure(plot_height=600, plot_width=1000,
-                  title='{} - {} Regular Season'.format(league.settings.name, default_yr),
+                  title='{} - {} Regular Season'.format(league.settings.name, year_input.value),
                   x_axis_label='Week',
                   y_axis_label='Expected Wins',
                   tools=[ew_hover, ResetTool(), BoxZoomTool(), WheelZoomTool(), SaveTool(), PanTool()])
@@ -310,7 +313,7 @@ def league_id_handler(attr, old, new):
     global sc_sources, ew_sources, sc_renderers, ew_renderers
     global layout
 
-    league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(new), int(lg_id_input.value))
+    league_obj, num_teams, week_num, owners, owners_list, team_objs, weeks, owner_to_idx = retrieve_lg_info(int(new), int(year_input.value))
 
     plot1 = initialize_sc_figure(league_obj, week_num)
     plot2 = initialize_ew_figure(league_obj, week_num)
@@ -332,6 +335,8 @@ def league_id_handler(attr, old, new):
     lg_id_message.text = '<b><p style="color: green;">League accessed successfully.</p></b>'
 
     plot2_wrap.children[0] = plot2
+
+    table_wrap.children[0] = initialize_ew_table(team_objs, week_num, num_teams)
 
     # will use to avoid re-computation of data after comparisons
     backup_sc_data = [[[], []] for _ in range(num_teams)]
