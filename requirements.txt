@@ -1,2 +1,3 @@
 bokeh==0.12.10
+tornado==4.4
 git+git://github.com/rbarton65/espnff.git#egg=espnff
