@@ -5,6 +5,7 @@ from bokeh.models import HoverTool, ResetTool, SaveTool, WheelZoomTool, BoxZoomT
 from bokeh.models.widgets import Dropdown, Button, RangeSlider, Div, TextInput, Panel, Tabs, DataTable, TableColumn
 from bokeh.models.tickers import FixedTicker
 from bokeh.palettes import all_palettes
+from bokeh.models.callbacks import CustomJS
 from espnff import League, PrivateLeagueException, InvalidLeagueException, UnknownLeagueException
 from datetime import datetime
 from structures import Team
@@ -206,7 +207,12 @@ def get_table_sources(team_objects, curr_week, number_teams):
 
     rank = 1
     for idx in range(number_teams):
-        if (idx != 0) and teams_by_ew[idx].exp_wins[curr_week] < teams_by_ew[idx - 1].exp_wins[curr_week]:
+
+        not_first_index = idx != 0
+        this_team_ew = round(teams_by_ew[idx].exp_wins[curr_week], 5)
+        prev_team_ew = round(teams_by_ew[idx - 1].exp_wins[curr_week], 5)
+
+        if not_first_index and this_team_ew < prev_team_ew:
             rank = idx + 1
 
         rankings[idx] = rank
@@ -546,6 +552,22 @@ def season_handler(attr, old, new):
     comp_button.button_type = 'danger'
     week_slider.end = week_num
     week_slider.value = (1, week_num)
+
+# TODO add Google Analytics Script here
+callback = CustomJS(code='''
+
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-111108475-1', 'auto');
+    
+    ga('send', 'pageview');
+
+''')
+
+# TODO use callback somewhere
 
 
 lg_id_input = TextInput(value='1667721', title='League ID (from URL):')
