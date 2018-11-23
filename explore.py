@@ -554,7 +554,7 @@ def season_handler(attr, old, new):
     week_slider.value = (1, week_num)
 
 # TODO add Google Analytics Script here
-callback = CustomJS(code='''
+ga_view_callback = CustomJS(code='''
 
     (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
     (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
@@ -619,6 +619,7 @@ ew_renderers = plot_ew_data(team_objs, ew_sources, line_colors)
 
 # register callback handlers to respond to changes in widget values
 lg_id_input.on_change('value', league_id_handler)
+lg_id_input.js_on_change('value', ga_view_callback)
 week_slider.on_change('value', week_slider_handler)
 team1_dd.on_change('value', team1_select_handler)
 team2_dd.on_change('value', team2_select_handler)
